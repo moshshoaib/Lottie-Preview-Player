@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lottie Preview Player</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Inter',sans-serif;background:#0b0d14;color:#d1d5db;min-height:100vh;display:flex;flex-direction:column}
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(99,102,241,.1) 0%,transparent 60%);pointer-events:none}
+
+    .hdr{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 28px;background:rgba(11,13,20,.9);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.06)}
+    .hdr-l{display:flex;align-items:center;gap:12px}
+    .hdr-icon{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#a78bfa);display:flex;align-items:center;justify-content:center}
+    .hdr-icon svg{width:18px;height:18px;color:#fff}
+    .hdr h1{font-size:17px;font-weight:600;background:linear-gradient(135deg,#e5e7eb,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+    .main{flex:1;display:flex;flex-direction:column;align-items:center;padding:32px 20px 60px;gap:24px;position:relative;z-index:1;max-width:960px;margin:0 auto;width:100%}
+
+    /* File selector */
+    .file-bar{width:100%;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+    .fbtn{padding:8px 18px;font-size:13px;font-weight:500;font-family:'Inter',sans-serif;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.03);color:#9ca3af;cursor:pointer;transition:all .25s}
+    .fbtn:hover{background:rgba(255,255,255,.07);color:#e5e7eb;transform:translateY(-1px)}
+    .fbtn.on{background:rgba(99,102,241,.15);color:#a5b4fc;border-color:rgba(99,102,241,.35);box-shadow:0 0 20px rgba(99,102,241,.1)}
+
+    /* Player */
+    .player{width:100%;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.3)}
+    #canvas{width:100%;aspect-ratio:1;max-height:500px;background:repeating-conic-gradient(rgba(255,255,255,.02) 0% 25%,transparent 0% 50%) 0 0/20px 20px;position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    #canvas svg.placeholder{width:64px;height:64px;color:rgba(255,255,255,.08)}
+
+    /* Error overlay */
+    .err-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(11,13,20,.85);z-index:5}
+    .err-overlay svg{width:48px;height:48px;color:#f87171;opacity:.6}
+    .err-overlay h3{font-size:15px;color:#f87171;font-weight:600}
+    .err-overlay p{font-size:13px;color:#6b7280;max-width:320px;text-align:center;line-height:1.5}
+
+    /* Controls */
+    .controls{display:flex;align-items:center;gap:14px;padding:14px 20px;background:rgba(0,0,0,.25);border-top:1px solid rgba(255,255,255,.04)}
+    .cbtn{background:none;border:none;color:#9ca3af;cursor:pointer;padding:7px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+    .cbtn:hover{background:rgba(255,255,255,.08);color:#a5b4fc}
+    .cbtn svg{width:20px;height:20px}
+    .play-btn{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 16px rgba(99,102,241,.4)}
+    .play-btn:hover{box-shadow:0 4px 24px rgba(99,102,241,.55);transform:scale(1.06)}
+    .play-btn svg{width:20px;height:20px}
+
+    .prog-wrap{flex:1;display:flex;align-items:center;gap:10px}
+    .prog{flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:4px;cursor:pointer;position:relative;transition:height .2s}
+    .prog:hover{height:6px}
+    .prog-fill{height:100%;background:linear-gradient(90deg,#6366f1,#a78bfa);border-radius:4px;width:0%;transition:width 30ms linear}
+    .prog:hover .prog-fill::after{content:'';position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:14px;height:14px;background:#a78bfa;border-radius:50%;box-shadow:0 0 8px rgba(167,139,250,.5)}
+    .time{font-size:11px;color:#6b7280;min-width:35px;font-variant-numeric:tabular-nums}
+
+    .speeds{display:flex;gap:3px}
+    .spd{padding:3px 9px;font-size:11px;font-weight:600;font-family:'Inter',sans-serif;border:1px solid rgba(255,255,255,.08);border-radius:6px;background:transparent;color:#6b7280;cursor:pointer;transition:all .2s}
+    .spd:hover{color:#c4b5fd}
+    .spd.on{background:rgba(99,102,241,.18);color:#a5b4fc;border-color:rgba(99,102,241,.3)}
+
+    .loop-on{color:#818cf8 !important}
+
+    /* Info */
+    .info{width:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+    .ic{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:12px;padding:14px 16px;transition:all .25s}
+    .ic:hover{background:rgba(255,255,255,.05);border-color:rgba(99,102,241,.18);transform:translateY(-2px)}
+    .ic .l{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:#6b7280;margin-bottom:4px;font-weight:500}
+    .ic .v{font-size:17px;font-weight:700;color:#f3f4f6}
+
+    /* Status */
+    .status{font-size:13px;color:#6b7280;text-align:center;padding:8px}
+
+    @media(max-width:600px){.hdr{padding:12px 14px}.main{padding:20px 12px 50px}.file-bar{gap:6px}.fbtn{padding:6px 12px;font-size:12px}.info{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-l">
+    <div class="hdr-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg></div>
+    <h1>Lottie Preview Player</h1>
+  </div>
+  <div style="display:flex;gap:8px">
+    <label class="fbtn" style="cursor:pointer" id="upload-btn">📁 Open File
+      <input type="file" accept=".json,.lottie" style="display:none" id="file-input">
+    </label>
+  </div>
+</div>
+
+<div class="main">
+  <div class="file-bar" id="file-bar"></div>
+
+  <div class="player">
+    <div id="canvas"></div>
+    <div class="controls">
+      <button class="cbtn play-btn" id="play-btn" title="Play/Pause">
+        <svg id="ico-play" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg>
+        <svg id="ico-pause" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <button class="cbtn" id="stop-btn" title="Stop"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
+      <div class="prog-wrap">
+        <span class="time" id="t-cur">0:00</span>
+        <div class="prog" id="prog"><div class="prog-fill" id="prog-fill"></div></div>
+        <span class="time" id="t-tot">0:00</span>
+      </div>
+      <div class="speeds">
+        <button class="spd" data-s="0.5">½×</button>
+        <button class="spd on" data-s="1">1×</button>
+        <button class="spd" data-s="2">2×</button>
+      </div>
+      <button class="cbtn loop-on" id="loop-btn" title="Loop"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg></button>
+    </div>
+  </div>
+
+  <div class="info" id="info"></div>
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+const FILES = [
+  'data_preview.json',
+  'loading_upper.json',
+  'Travel Booking Animation.json',
+  'Star Icon.json',
+  'Location Animation.json',
+  'Route Data.json'
+];
+
+let anim = null, playing = false, looping = true, currentFile = '';
+
+const canvas = document.getElementById('canvas');
+const playBtn = document.getElementById('play-btn');
+const icoPlay = document.getElementById('ico-play');
+const icoPause = document.getElementById('ico-pause');
+const progFill = document.getElementById('prog-fill');
+const tCur = document.getElementById('t-cur');
+const tTot = document.getElementById('t-tot');
+const infoEl = document.getElementById('info');
+const statusEl = document.getElementById('status');
+
+function fmt(s){const m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+String(sec).padStart(2,'0')}
+
+// Build file buttons
+const bar = document.getElementById('file-bar');
+FILES.forEach(f => {
+  const b = document.createElement('button');
+  b.className = 'fbtn';
+  b.textContent = f.replace('.json','');
+  b.onclick = () => loadFile(f);
+  bar.appendChild(b);
+});
+
+function setActive(name) {
+  bar.querySelectorAll('.fbtn').forEach(b => {
+    b.classList.toggle('on', b.textContent === name.replace('.json',''));
+  });
+}
+
+function showInfo(data) {
+  const tf = (data.op||0) - (data.ip||0);
+  const dur = data.fr ? (tf / data.fr).toFixed(1) : '?';
+  const cards = [
+    ['Name', data.nm || '—'],
+    ['Size', data.w + '×' + data.h],
+    ['FPS', data.fr],
+    ['Duration', dur + 's'],
+    ['Frames', tf],
+    ['Layers', Array.isArray(data.layers) ? data.layers.length : '?'],
+    ['Assets', Array.isArray(data.assets) ? data.assets.length : '?'],
+    ['Version', 'v' + data.v],
+  ];
+  infoEl.innerHTML = cards.map(c => `<div class="ic"><div class="l">${c[0]}</div><div class="v">${c[1]}</div></div>`).join('');
+}
+
+function destroyAnim() {
+  if (anim) { anim.destroy(); anim = null; }
+  playing = false;
+  icoPlay.style.display = '';
+  icoPause.style.display = 'none';
+  progFill.style.width = '0%';
+  tCur.textContent = '0:00';
+  tTot.textContent = '0:00';
+  canvas.innerHTML = '';
+}
+
+function initAnim(data, name) {
+  destroyAnim();
+  currentFile = name;
+  statusEl.textContent = 'Loading ' + name + '…';
+
+  try {
+    anim = lottie.loadAnimation({
+      container: canvas,
+      renderer: 'svg',
+      loop: looping,
+      autoplay: true,
+      animationData: data
+    });
+
+    playing = true;
+    icoPlay.style.display = 'none';
+    icoPause.style.display = '';
+
+    anim.addEventListener('DOMLoaded', () => {
+      statusEl.textContent = '▶ Playing: ' + name;
+      showInfo(data);
+      const tf = (data.op||0) - (data.ip||0);
+      tTot.textContent = fmt(data.fr ? tf / data.fr : 0);
+    });
+
+    anim.addEventListener('enterFrame', () => {
+      const pct = (anim.currentFrame / anim.totalFrames) * 100;
+      progFill.style.width = pct + '%';
+      tCur.textContent = fmt(anim.currentFrame / (data.fr || 30));
+    });
+
+    anim.addEventListener('complete', () => {
+      if (!looping) {
+        playing = false;
+        icoPlay.style.display = '';
+        icoPause.style.display = 'none';
+        statusEl.textContent = '⏹ Finished: ' + name;
+      }
+    });
+
+    anim.addEventListener('data_failed', () => {
+      showError('Animation data failed to parse', 'The JSON structure may be incomplete or invalid for Lottie rendering.');
+    });
+
+  } catch(e) {
+    showError('Failed to load animation', e.message);
+  }
+}
+
+function showError(title, msg) {
+  statusEl.textContent = '⚠ Error';
+  const ov = document.createElement('div');
+  ov.className = 'err-overlay';
+  ov.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+    <h3>${title}</h3>
+    <p>${msg}</p>`;
+  canvas.appendChild(ov);
+}
+
+function loadFile(name) {
+  setActive(name);
+  statusEl.textContent = 'Fetching ' + name + '…';
+  fetch(name)
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => initAnim(data, name))
+    .catch(e => {
+      destroyAnim();
+      showError('Could not load file', e.message);
+      statusEl.textContent = '⚠ Failed to load ' + name;
+    });
+}
+
+function loadFromFileInput(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      // Deselect file bar buttons
+      bar.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on'));
+      initAnim(data, file.name);
+    } catch(err) {
+      destroyAnim();
+      showError('Invalid JSON', err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// Controls
+playBtn.onclick = () => {
+  if (!anim) return;
+  if (playing) { anim.pause(); playing = false; icoPlay.style.display = ''; icoPause.style.display = 'none'; }
+  else { anim.play(); playing = true; icoPlay.style.display = 'none'; icoPause.style.display = ''; }
+};
+
+document.getElementById('stop-btn').onclick = () => {
+  if (!anim) return;
+  anim.stop(); playing = false; icoPlay.style.display = ''; icoPause.style.display = 'none';
+  progFill.style.width = '0%'; tCur.textContent = '0:00';
+};
+
+document.getElementById('prog').onclick = e => {
+  if (!anim) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - r.left) / r.width;
+  anim.goToAndPlay(pct * anim.totalFrames, true);
+  playing = true; icoPlay.style.display = 'none'; icoPause.style.display = '';
+};
+
+canvas.onclick = e => {
+  if (e.target.closest('.err-overlay')) return;
+  playBtn.click();
+};
+
+document.querySelectorAll('.spd').forEach(b => {
+  b.onclick = () => {
+    if (anim) anim.setSpeed(parseFloat(b.dataset.s));
+    document.querySelectorAll('.spd').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+  };
+});
+
+document.getElementById('loop-btn').onclick = function() {
+  looping = !looping;
+  if (anim) anim.loop = looping;
+  this.classList.toggle('loop-on', looping);
+};
+
+document.getElementById('file-input').onchange = e => {
+  if (e.target.files[0]) loadFromFileInput(e.target.files[0]);
+};
+
+// Drag & drop
+document.body.addEventListener('dragover', e => e.preventDefault());
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files[0]) loadFromFileInput(e.dataTransfer.files[0]);
+});
+
+// Auto-load first file
+loadFile(FILES[0]);
+</script>
+</body>
+</html>
